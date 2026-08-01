@@ -1,0 +1,138 @@
+"""evo.locate - self-hosted IP geolocation API.
+
+A drop-in replacement for ip2location.io's free tier, backed by DB-IP Lite
+databases held locally. No account, no API key, no per-query cost, and no
+visitor IP ever leaves the host it runs on.
+"""
+
+from __future__ import annotations
+
+import ipaddress
+import logging
+import os
+import threading
+import time
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import JSONResponse
+
+from app.database import DatabaseUnavailable, GeoDatabases
+
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger("evo.locate")
+
+VERSION = "0.0.0.1.0"
+
+# DB-IP Lite is CC BY 4.0. Anything displaying these results owes DB-IP a
+# visible credit with a link, so it travels on every response as a header
+# rather than living only in documentation nobody reads.
+ATTRIBUTION = "IP Geolocation by DB-IP (https://db-ip.com)"
+
+DATA_DIR = Path(os.environ.get("EVO_LOCATE_DATA_DIR", "/data"))
+REFRESH_INTERVAL_HOURS = int(os.environ.get("EVO_LOCATE_REFRESH_HOURS", "24"))
+SKIP_BOOT_DOWNLOAD = os.environ.get("EVO_LOCATE_SKIP_BOOT_DOWNLOAD", "").lower() in {"1", "true", "yes"}
+
+databases = GeoDatabases(DATA_DIR)
+_stop = threading.Event()
+
+
+def _refresh_loop() -> None:
+    """Check for a newer monthly release periodically.
+
+    DB-IP publishes monthly, so a daily check is generous. The download is a
+    no-op when the local copy already matches the newest published month.
+    """
+    while not _stop.wait(REFRESH_INTERVAL_HOURS * 3600):
+        try:
+            if databases.refresh_all():
+                logger.info("Databases refreshed")
+        except Exception:
+            logger.exception("Scheduled refresh failed; keeping existing databases")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    databases.open_all()
+    if not databases.ready and not SKIP_BOOT_DOWNLOAD:
+        logger.info("No local database found, fetching on first boot")
+        try:
+            databases.refresh_all()
+        except Exception:
+            logger.exception("First-boot download failed; /v1/lookup will 503 until it succeeds")
+    worker = threading.Thread(target=_refresh_loop, name="refresh", daemon=True)
+    worker.start()
+    try:
+        yield
+    finally:
+        _stop.set()
+        databases.close()
+
+
+app = FastAPI(
+    title="evo.locate",
+    version=VERSION,
+    summary="Self-hosted IP geolocation. No key, no signup, no per-query cost.",
+    lifespan=lifespan,
+)
+
+
+@app.middleware("http")
+async def add_attribution_header(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Data-Attribution"] = ATTRIBUTION
+    return response
+
+
+@app.get("/health", summary="Liveness and database status")
+def health() -> JSONResponse:
+    present = databases.present()
+    ready = databases.ready
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={
+            "status": "ok" if ready else "loading",
+            "version": VERSION,
+            "databases": present,
+        },
+    )
+
+
+@app.get("/v1/attribution", summary="Attribution required by the data licence")
+def attribution() -> dict[str, str]:
+    return {
+        "text": ATTRIBUTION,
+        "url": "https://db-ip.com",
+        "licence": "CC BY 4.0",
+        "note": (
+            "DB-IP Lite is Creative Commons Attribution 4.0. Any page that "
+            "displays results from this service must credit DB-IP with a link."
+        ),
+    }
+
+
+@app.get("/v1/lookup/{ip}", summary="Look up a single IP address")
+def lookup(ip: str, response: Response) -> dict:
+    try:
+        parsed = ipaddress.ip_address(ip)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"'{ip}' is not a valid IP address")
+
+    # Private and loopback space is not in any geolocation database. Answering
+    # 200 with empty fields would be indistinguishable from "we looked and
+    # found nothing", so say plainly that it is not a routable address.
+    if parsed.is_private or parsed.is_loopback or parsed.is_link_local:
+        raise HTTPException(status_code=422, detail=f"'{ip}' is not a public address")
+
+    try:
+        record = databases.lookup(ip)
+    except DatabaseUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    # Results change only when the monthly database does.
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return record

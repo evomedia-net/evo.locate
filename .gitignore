@@ -1,0 +1,13 @@
+# Geolocation databases are downloaded at runtime, never committed.
+# City Lite alone is ~124 MB and is republished monthly.
+data/
+*.mmdb
+*.mmdb.gz
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+*.egg-info/

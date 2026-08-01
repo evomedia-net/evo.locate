@@ -1,0 +1,18 @@
+# Minimal standalone run. Nothing is exposed publicly by default: the port is
+# bound to localhost so it sits behind whatever proxy you already run.
+services:
+  evo-locate:
+    build: .
+    image: evo-locate:latest
+    container_name: evo_locate
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - evolocate_data:/data
+    environment:
+      # How often to check DB-IP for a newer monthly release.
+      EVO_LOCATE_REFRESH_HOURS: "24"
+
+volumes:
+  evolocate_data:
