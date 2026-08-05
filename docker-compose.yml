@@ -1,5 +1,13 @@
 # Minimal standalone run. Nothing is exposed publicly by default: the port is
 # bound to localhost so it sits behind whatever proxy you already run.
+#
+# Port 9100 rather than the obvious 8080: 8080 is already SmartPlant EHS's dev
+# port and DocketMail's prod port, and a geolocation lookup failing because
+# something else answered on 8080 is a confusing hour to spend. 9100 is free on
+# the host - the monitoring stack (Prometheus 9090, node-exporter 9100) is
+# container-internal and publishes nothing, so there is no conflict, though the
+# similarity to node-exporter's conventional port is worth knowing when reading
+# `ss -tln` output.
 services:
   evo-locate:
     build: .
@@ -7,7 +15,7 @@ services:
     container_name: evo_locate
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:9100:9100"
     volumes:
       - evolocate_data:/data
     environment:
