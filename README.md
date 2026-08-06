@@ -38,6 +38,20 @@ curl localhost:9100/v1/lookup/8.8.8.8
 }
 ```
 
+## Running without Docker
+
+It is a plain FastAPI app; Docker is packaging, not a requirement.
+
+```bash
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt
+EVO_LOCATE_DATA_DIR=./data .venv/bin/uvicorn app.main:app --port 9100
+```
+
+On Windows (PowerShell): `$env:EVO_LOCATE_DATA_DIR = ".\data"`, then `.venv\Scripts\uvicorn app.main:app --port 9100`.
+
+The variable matters here: `EVO_LOCATE_DATA_DIR` defaults to `/data`, which exists in the container but rarely on a bare host. Point it at any writable directory — the databases are downloaded into it on first boot and refreshed in place, and everything else behaves exactly as under Docker.
+
 ## API
 
 | Endpoint | Purpose |
@@ -119,6 +133,17 @@ console.log(`${geo.ip}: ${geo.city_name}, ${geo.country_name} (${geo.as})`);
 The databases are **never committed to this repository** and are not baked into the image — they are large, republished monthly, and carry their own licence. The service fetches them.
 
 Downloads are written to a temporary file and only moved into place after they have been fully written and successfully parsed, so a truncated or corrupt download never replaces a working database.
+
+## Troubleshooting
+
+| Symptom | What it means and what to do |
+|---|---|
+| `/health` answers `503` right after starting | Databases not loaded yet. Normal on first boot while the ~62 MB download runs — a minute or two. |
+| `503` persists | The download failed; the log says why (no network, proxy, full disk). The refresh worker retries every `EVO_LOCATE_REFRESH_HOURS` (default daily), and restarting the service retries immediately. A failed download never corrupts anything — files are swapped in only after a complete download parses successfully. |
+| `{"detail": "Not Found"}` | No route at that path. The API surface is the table above; the bare `/` redirects to `/docs`. |
+| `400` on a lookup | The input is neither a valid IP address nor a hostname that resolves. |
+| `422` on a lookup | The address — or what the hostname resolved to — is private/loopback/link-local. No geolocation database can answer those. |
+| Disk planning | ~140 MB for the two databases, plus ~62 MB transient during each monthly refresh download. |
 
 ## Attribution — required
 
