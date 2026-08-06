@@ -61,6 +61,8 @@ Anything that doesn't parse as an IP is treated as a hostname: it is resolved th
 
 IP responses carry `Cache-Control: public, max-age=86400`, since results only change when the monthly database does. Hostname responses get `max-age=300` — a name can point somewhere new whenever its DNS does.
 
+All responses — errors included — are pretty-printed JSON. They are a few hundred bytes at most, so readability in a browser or a terminal costs nothing measurable.
+
 ## Using it as an ip2location drop-in
 
 Behind nginx:

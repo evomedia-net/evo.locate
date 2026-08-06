@@ -214,6 +214,12 @@ def test_attribution_travels_on_every_response(client):
         assert "db-ip.com" in client.get(path).headers["X-Data-Attribution"]
 
 
+def test_json_is_pretty_printed_everywhere(client):
+    """Success, handler errors, and the router's own 404 all render indented."""
+    for path in ("/v1/lookup/8.8.8.8", "/health", "/v1/lookup/not-an-ip", "/no-such-path"):
+        assert client.get(path).text.startswith('{\n  "'), path
+
+
 def test_lookup_is_cacheable(client):
     resp = client.get("/v1/lookup/8.8.8.8")
     assert "max-age" in resp.headers.get("Cache-Control", "")

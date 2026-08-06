@@ -8,6 +8,7 @@ visitor IP ever leaves the host it runs on.
 from __future__ import annotations
 
 import ipaddress
+import json
 import logging
 import os
 import socket
@@ -18,6 +19,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse, RedirectResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.database import DatabaseUnavailable, GeoDatabases
 
@@ -74,12 +76,34 @@ async def lifespan(app: FastAPI):
         databases.close()
 
 
+class PrettyJSONResponse(JSONResponse):
+    """Indented JSON on every response, success and error alike.
+
+    The responses are a few hundred bytes at most, so readability in a
+    browser, curl or a log costs nothing measurable on the wire.
+    """
+
+    def render(self, content) -> bytes:
+        return (json.dumps(content, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+
 app = FastAPI(
     title="evo.locate",
     version=VERSION,
     summary="Self-hosted IP geolocation. No key, no signup, no per-query cost.",
     lifespan=lifespan,
+    default_response_class=PrettyJSONResponse,
 )
+
+
+# Registered on the starlette base class so it also catches the router's own
+# 404/405 responses, not just HTTPExceptions raised inside route handlers.
+@app.exception_handler(StarletteHTTPException)
+async def pretty_http_exception(request, exc: StarletteHTTPException) -> PrettyJSONResponse:
+    """Errors are what a browser sees first; format them like everything else."""
+    return PrettyJSONResponse(
+        {"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers
+    )
 
 
 @app.middleware("http")
@@ -96,10 +120,10 @@ def root() -> RedirectResponse:
 
 
 @app.get("/health", summary="Liveness and database status")
-def health() -> JSONResponse:
+def health() -> PrettyJSONResponse:
     present = databases.present()
     ready = databases.ready
-    return JSONResponse(
+    return PrettyJSONResponse(
         status_code=200 if ready else 503,
         content={
             "status": "ok" if ready else "loading",
