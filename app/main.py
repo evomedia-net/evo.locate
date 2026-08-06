@@ -87,10 +87,44 @@ class PrettyJSONResponse(JSONResponse):
         return (json.dumps(content, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
+# Markdown, rendered at the top of /docs. The code samples live here rather
+# than only in the README so the interactive docs are self-sufficient.
+DESCRIPTION = """\
+Look up an IP address **or hostname**. Plain HTTP, no client library needed.
+
+**Python** (standard library only):
+
+```python
+import json
+from urllib.request import urlopen
+
+with urlopen("http://localhost:9100/v1/lookup/8.8.8.8") as resp:
+    geo = json.load(resp)
+
+print(f"{geo['ip']}: {geo['city_name']}, {geo['country_name']} ({geo['as']})")
+```
+
+**Node.js** (18+, built-in `fetch`):
+
+```js
+const resp = await fetch("http://localhost:9100/v1/lookup/8.8.8.8");
+if (!resp.ok) {
+  const { detail } = await resp.json();
+  throw new Error(`lookup failed (${resp.status}): ${detail}`);
+}
+const geo = await resp.json();
+
+console.log(`${geo.ip}: ${geo.city_name}, ${geo.country_name} (${geo.as})`);
+```
+
+Results shown on a web page owe DB-IP a credit — see `GET /v1/attribution`.
+"""
+
 app = FastAPI(
     title="evo.locate",
     version=VERSION,
     summary="Self-hosted IP geolocation. No key, no signup, no per-query cost.",
+    description=DESCRIPTION,
     lifespan=lifespan,
     default_response_class=PrettyJSONResponse,
 )
