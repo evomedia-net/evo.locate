@@ -1,3 +1,7 @@
+# Evomedia.net evo.locate — https://github.com/kellymichels/evo.locate
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """Manual smoke test against the real DB-IP Lite databases.
 
 Not part of the test suite: it downloads ~62 MB and depends on DB-IP being

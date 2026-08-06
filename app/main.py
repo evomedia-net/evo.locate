@@ -1,3 +1,7 @@
+# Evomedia.net evo.locate — https://github.com/kellymichels/evo.locate
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """evo.locate - self-hosted IP geolocation API.
 
 A drop-in replacement for ip2location.io's free tier, backed by DB-IP Lite

@@ -1,3 +1,7 @@
+# Evomedia.net evo.locate — https://github.com/kellymichels/evo.locate
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 # Minimal standalone run. Nothing is exposed publicly by default: the port is
 # bound to localhost so it sits behind whatever proxy you already run.
 #

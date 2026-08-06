@@ -1,3 +1,7 @@
+# Evomedia.net evo.locate — https://github.com/kellymichels/evo.locate
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """README.txt is generated from README.md; committing one without
 regenerating the other ships a stale mirror. The script's --check mode is
 the single source of truth for "in sync", so the test just runs it.
