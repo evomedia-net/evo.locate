@@ -48,6 +48,38 @@ On Windows (PowerShell): $env:EVO_LOCATE_DATA_DIR = ".\data", then .venv\Scripts
 
 The variable matters here: EVO_LOCATE_DATA_DIR defaults to /data, which exists in the container but rarely on a bare host. Point it at any writable directory — the databases are downloaded into it on first boot and refreshed in place, and everything else behaves exactly as under Docker.
 
+Running as a service
+--------------------
+
+The commands above run in the foreground and die with the terminal. To keep the service running on a machine:
+
+Under Docker, the compose file already handles it: restart: unless-stopped brings the container back after crashes and reboots, as long as Docker itself starts on boot (systemctl enable docker).
+
+Bare, on any systemd Linux, install a unit — adjust paths and user to taste:
+
+    # /etc/systemd/system/evo-locate.service
+    [Unit]
+    Description=evo.locate IP geolocation API
+    After=network-online.target
+    Wants=network-online.target
+
+    [Service]
+    User=ubuntu
+    WorkingDirectory=/opt/evo.locate
+    Environment=EVO_LOCATE_DATA_DIR=/opt/evo.locate/data
+    ExecStart=/opt/evo.locate/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 9100
+    Restart=always
+    RestartSec=3
+
+    [Install]
+    WantedBy=multi-user.target
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now evo-locate
+    curl localhost:9100/health
+
+Bind 127.0.0.1 when a reverse proxy on the same machine fronts it — that is the setup the drop-in section below assumes, and it keeps the service off the open network. Use --host 0.0.0.0 only if other machines must reach it directly.
+
 API
 ---
 
