@@ -42,21 +42,26 @@ curl localhost:9100/v1/lookup/8.8.8.8
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /v1/lookup/{ip}` | Look up one address. IPv4 and IPv6. |
+| `GET /v1/lookup/{ip}` | Look up one address. IPv4, IPv6, or a hostname. |
 | `GET /health` | `200` when ready, `503` while databases are still loading. |
 | `GET /v1/attribution` | The credit the data licence requires. |
 | `GET /docs` | Interactive OpenAPI documentation. |
+| `GET /` | Redirects to `/docs`. |
 
 **Status codes**
 
 | Code | Meaning |
 |---|---|
 | `200` | Found. Fields may be empty strings if the address is not in the database. |
-| `400` | Not a valid IP address. |
-| `422` | Valid, but private/loopback/link-local — not something any geolocation database can answer. |
+| `400` | Not a valid IP address or a hostname that resolves. |
+| `422` | Valid (or resolved), but private/loopback/link-local — not something any geolocation database can answer. |
 | `503` | Databases not loaded yet. |
 
-Responses carry `Cache-Control: public, max-age=86400`, since results only change when the monthly database does.
+Anything that doesn't parse as an IP is treated as a hostname: it is resolved through the host's own DNS resolver (preferring IPv4 when a name has both) and the resolved address is looked up — the response's `ip` field tells you which address that was. That DNS query is the only network traffic a lookup can cause, it carries only the name, and literal-IP lookups never make it.
+
+IP responses carry `Cache-Control: public, max-age=86400`, since results only change when the monthly database does. Hostname responses get `max-age=300` — a name can point somewhere new whenever its DNS does.
+
+All responses — errors included — are pretty-printed JSON. They are a few hundred bytes at most, so readability in a browser or a terminal costs nothing measurable.
 
 ## Using it as an ip2location drop-in
 
@@ -69,6 +74,38 @@ location ~ ^/api/geo/(.+)$ {
 ```
 
 The response uses ip2location's field names (`country_code`, `country_name`, `region_name`, `city_name`, `asn`, `as`). Their paid-tier fields — `isp`, `domain`, `usage_type` — are **omitted**, exactly as they are on the free tier, so existing callers that fall back on them keep working unchanged.
+
+## Client examples
+
+Plain HTTP, so no client library is needed in any language. Python, standard library only:
+
+```python
+import json
+from urllib.request import urlopen
+
+# also accepts a hostname, e.g. .../v1/lookup/google.com
+with urlopen("http://localhost:9100/v1/lookup/8.8.8.8") as resp:
+    geo = json.load(resp)
+
+print(f"{geo['ip']}: {geo['city_name']}, {geo['country_name']} ({geo['as']})")
+# 8.8.8.8: Mountain View, United States (Google LLC)
+```
+
+A `400`/`422`/`503` raises `urllib.error.HTTPError`; the JSON body's `detail` field says why.
+
+Node.js (18+, built-in `fetch`, no dependencies):
+
+```js
+const resp = await fetch("http://localhost:9100/v1/lookup/8.8.8.8");
+if (!resp.ok) {
+  const { detail } = await resp.json();
+  throw new Error(`lookup failed (${resp.status}): ${detail}`);
+}
+const geo = await resp.json();
+
+console.log(`${geo.ip}: ${geo.city_name}, ${geo.country_name} (${geo.as})`);
+// 8.8.8.8: Mountain View, United States (Google LLC)
+```
 
 ## Configuration
 
