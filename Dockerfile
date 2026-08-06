@@ -1,3 +1,7 @@
+# Evomedia.net evo.locate — https://github.com/kellymichels/evo.locate
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 FROM python:3.13-slim AS base
 
 # Databases live on a volume, not in the image: they are ~124 MB and are

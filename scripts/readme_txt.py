@@ -1,3 +1,7 @@
+# Evomedia.net evo.locate — https://github.com/kellymichels/evo.locate
+# Created by Kelly Michels · dev@evomedia.net
+# Licensed under the MIT License. See LICENSE.
+
 """Render README.md to README.txt with the markdown markup removed.
 
 README.txt exists for terminals, pagers and anywhere markdown doesn't
