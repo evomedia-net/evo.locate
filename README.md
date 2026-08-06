@@ -21,7 +21,7 @@ docker compose up -d
 On first boot it downloads the DB-IP Lite databases (~62 MB compressed, ~140 MB on disk) and starts serving. That takes a minute or two; `/health` answers `503` until it is ready.
 
 ```bash
-curl localhost:8080/v1/lookup/8.8.8.8
+curl localhost:9100/v1/lookup/8.8.8.8
 ```
 
 ```json
@@ -64,7 +64,7 @@ Behind nginx:
 
 ```nginx
 location ~ ^/api/geo/(.+)$ {
-    proxy_pass http://evo_locate:8080/v1/lookup/$1;
+    proxy_pass http://evo_locate:9100/v1/lookup/$1;
 }
 ```
 
