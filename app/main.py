@@ -10,13 +10,14 @@ from __future__ import annotations
 import ipaddress
 import logging
 import os
+import socket
 import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.database import DatabaseUnavailable, GeoDatabases
 
@@ -88,6 +89,12 @@ async def add_attribution_header(request, call_next):
     return response
 
 
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    """The bare URL is only ever a human in a browser; send them to the docs."""
+    return RedirectResponse(url="/docs")
+
+
 @app.get("/health", summary="Liveness and database status")
 def health() -> JSONResponse:
     present = databases.present()
@@ -115,24 +122,58 @@ def attribution() -> dict[str, str]:
     }
 
 
-@app.get("/v1/lookup/{ip}", summary="Look up a single IP address")
+def _resolve_hostname(name: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """Resolve a hostname to one address, or None if it does not resolve.
+
+    IPv4 is preferred when a name has both: the Lite databases' IPv4 coverage
+    is denser, and callers get a stable answer instead of one that flips with
+    the resolver's record ordering.
+    """
+    try:
+        infos = socket.getaddrinfo(name, None, proto=socket.IPPROTO_TCP)
+    except (socket.gaierror, UnicodeError):
+        return None
+    addresses = [ipaddress.ip_address(info[4][0]) for info in infos]
+    for address in addresses:
+        if address.version == 4:
+            return address
+    return addresses[0] if addresses else None
+
+
+@app.get("/v1/lookup/{ip}", summary="Look up an IP address or hostname")
 def lookup(ip: str, response: Response) -> dict:
+    """A literal IP is looked up as-is and never touches the network.
+
+    Anything else is treated as a hostname and resolved through the host's
+    DNS resolver first — that resolution is the only network traffic, and it
+    carries the name, never any visitor address.
+    """
+    hostname: str | None = None
     try:
         parsed = ipaddress.ip_address(ip)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"'{ip}' is not a valid IP address")
+        resolved = _resolve_hostname(ip)
+        if resolved is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{ip}' is not a valid IP address or a resolvable hostname",
+            )
+        hostname, parsed, ip = ip, resolved, str(resolved)
 
     # Private and loopback space is not in any geolocation database. Answering
     # 200 with empty fields would be indistinguishable from "we looked and
     # found nothing", so say plainly that it is not a routable address.
     if parsed.is_private or parsed.is_loopback or parsed.is_link_local:
-        raise HTTPException(status_code=422, detail=f"'{ip}' is not a public address")
+        detail = f"'{hostname}' resolves to '{ip}', which" if hostname else f"'{ip}'"
+        raise HTTPException(status_code=422, detail=f"{detail} is not a public address")
 
     try:
         record = databases.lookup(ip)
     except DatabaseUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    # Results change only when the monthly database does.
-    response.headers["Cache-Control"] = "public, max-age=86400"
+    # IP results change only when the monthly database does. A name can point
+    # somewhere new whenever its DNS does, so those get a DNS-sized lifetime.
+    max_age = 300 if hostname else 86400
+    response.headers["Cache-Control"] = f"public, max-age={max_age}"
     return record

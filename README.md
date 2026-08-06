@@ -42,21 +42,24 @@ curl localhost:9100/v1/lookup/8.8.8.8
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /v1/lookup/{ip}` | Look up one address. IPv4 and IPv6. |
+| `GET /v1/lookup/{ip}` | Look up one address. IPv4, IPv6, or a hostname. |
 | `GET /health` | `200` when ready, `503` while databases are still loading. |
 | `GET /v1/attribution` | The credit the data licence requires. |
 | `GET /docs` | Interactive OpenAPI documentation. |
+| `GET /` | Redirects to `/docs`. |
 
 **Status codes**
 
 | Code | Meaning |
 |---|---|
 | `200` | Found. Fields may be empty strings if the address is not in the database. |
-| `400` | Not a valid IP address. |
-| `422` | Valid, but private/loopback/link-local — not something any geolocation database can answer. |
+| `400` | Not a valid IP address or a hostname that resolves. |
+| `422` | Valid (or resolved), but private/loopback/link-local — not something any geolocation database can answer. |
 | `503` | Databases not loaded yet. |
 
-Responses carry `Cache-Control: public, max-age=86400`, since results only change when the monthly database does.
+Anything that doesn't parse as an IP is treated as a hostname: it is resolved through the host's own DNS resolver (preferring IPv4 when a name has both) and the resolved address is looked up — the response's `ip` field tells you which address that was. That DNS query is the only network traffic a lookup can cause, it carries only the name, and literal-IP lookups never make it.
+
+IP responses carry `Cache-Control: public, max-age=86400`, since results only change when the monthly database does. Hostname responses get `max-age=300` — a name can point somewhere new whenever its DNS does.
 
 ## Using it as an ip2location drop-in
 

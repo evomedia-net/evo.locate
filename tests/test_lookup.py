@@ -54,6 +54,40 @@ def data_dir() -> Path:
     shutil.rmtree(tmp, ignore_errors=True)
 
 
+@pytest.fixture(autouse=True)
+def fake_dns(monkeypatch):
+    """Stub the resolver so no test ever touches real DNS.
+
+    Unparseable input now falls through to hostname resolution, so without
+    this the malformed-address tests would each fire a real (slow, networked,
+    nondeterministic) DNS query.
+    """
+    import socket
+
+    table = {
+        # v6 listed first so the v4-preference behavior is what the test proves
+        "dns.google": ["2001:4860:4860::8888", "8.8.8.8"],
+        "v6only.example": ["2001:4860:4860::8888"],
+        "internal.example": ["10.0.0.1"],
+    }
+
+    def fake_getaddrinfo(host, port, *args, **kwargs):
+        if host not in table:
+            raise socket.gaierror(socket.EAI_NONAME, f"{host} does not resolve")
+        return [
+            (
+                socket.AF_INET6 if ":" in addr else socket.AF_INET,
+                socket.SOCK_STREAM,
+                socket.IPPROTO_TCP,
+                "",
+                (addr, 0),
+            )
+            for addr in table[host]
+        ]
+
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+
+
 @pytest.fixture()
 def client(data_dir, monkeypatch):
     from fastapi.testclient import TestClient
@@ -124,7 +158,48 @@ def test_ipv6_is_accepted(client):
     assert client.get("/v1/lookup/2001:4860:4860::8888").status_code == 200
 
 
+# --- hostname convenience -------------------------------------------------
+
+
+def test_hostname_is_resolved_preferring_ipv4(client):
+    resp = client.get("/v1/lookup/dns.google")
+    assert resp.status_code == 200
+    body = resp.json()
+    # the stub lists the AAAA record first; the A record must still win
+    assert body["ip"] == "8.8.8.8"
+    assert body["country_code"] == "US"
+
+
+def test_hostname_gets_dns_sized_cache_not_database_sized(client):
+    resp = client.get("/v1/lookup/dns.google")
+    assert "max-age=300" in resp.headers["Cache-Control"]
+
+
+def test_ipv6_only_hostname_is_looked_up(client):
+    body = client.get("/v1/lookup/v6only.example").json()
+    assert body["ip"] == "2001:4860:4860::8888"
+    assert body["country_code"] == "US"
+
+
+def test_unresolvable_hostname_is_rejected(client):
+    resp = client.get("/v1/lookup/does-not-exist.example")
+    assert resp.status_code == 400
+
+
+def test_hostname_resolving_to_private_space_answers_422(client):
+    resp = client.get("/v1/lookup/internal.example")
+    assert resp.status_code == 422
+    assert "10.0.0.1" in resp.json()["detail"]
+
+
 # --- operational surface --------------------------------------------------
+
+
+def test_root_redirects_to_docs(client):
+    """The bare URL should land a browser on the API docs, not a 404."""
+    resp = client.get("/", follow_redirects=False)
+    assert resp.status_code in (302, 307)
+    assert resp.headers["location"] == "/docs"
 
 
 def test_health_reports_ready_when_databases_present(client):
