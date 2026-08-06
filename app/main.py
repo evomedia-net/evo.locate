@@ -29,7 +29,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("evo.locate")
 
-VERSION = "0.0.0.1.1"
+VERSION = "0.0.0.1.2"
 
 # DB-IP Lite is CC BY 4.0. Anything displaying these results owes DB-IP a
 # visible credit with a link, so it travels on every response as a header
