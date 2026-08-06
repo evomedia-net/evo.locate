@@ -38,6 +38,55 @@ curl localhost:9100/v1/lookup/8.8.8.8
 }
 ```
 
+## Running without Docker
+
+It is a plain FastAPI app; Docker is packaging, not a requirement.
+
+```bash
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt
+EVO_LOCATE_DATA_DIR=./data .venv/bin/uvicorn app.main:app --port 9100
+```
+
+On Windows (PowerShell): `$env:EVO_LOCATE_DATA_DIR = ".\data"`, then `.venv\Scripts\uvicorn app.main:app --port 9100`.
+
+The variable matters here: `EVO_LOCATE_DATA_DIR` defaults to `/data`, which exists in the container but rarely on a bare host. Point it at any writable directory — the databases are downloaded into it on first boot and refreshed in place, and everything else behaves exactly as under Docker.
+
+## Running as a service
+
+The commands above run in the foreground and die with the terminal. To keep the service running on a machine:
+
+**Under Docker**, the compose file already handles it: `restart: unless-stopped` brings the container back after crashes and reboots, as long as Docker itself starts on boot (`systemctl enable docker`).
+
+**Bare, on any systemd Linux**, install a unit — adjust paths and user to taste:
+
+```ini
+# /etc/systemd/system/evo-locate.service
+[Unit]
+Description=evo.locate IP geolocation API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/evo.locate
+Environment=EVO_LOCATE_DATA_DIR=/opt/evo.locate/data
+ExecStart=/opt/evo.locate/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 9100
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now evo-locate
+curl localhost:9100/health
+```
+
+Bind `127.0.0.1` when a reverse proxy on the same machine fronts it — that is the setup the drop-in section below assumes, and it keeps the service off the open network. Use `--host 0.0.0.0` only if other machines must reach it directly.
+
 ## API
 
 | Endpoint | Purpose |
@@ -120,6 +169,17 @@ The databases are **never committed to this repository** and are not baked into 
 
 Downloads are written to a temporary file and only moved into place after they have been fully written and successfully parsed, so a truncated or corrupt download never replaces a working database.
 
+## Troubleshooting
+
+| Symptom | What it means and what to do |
+|---|---|
+| `/health` answers `503` right after starting | Databases not loaded yet. Normal on first boot while the ~62 MB download runs — a minute or two. |
+| `503` persists | The download failed; the log says why (no network, proxy, full disk). The refresh worker retries every `EVO_LOCATE_REFRESH_HOURS` (default daily), and restarting the service retries immediately. A failed download never corrupts anything — files are swapped in only after a complete download parses successfully. |
+| `{"detail": "Not Found"}` | No route at that path. The API surface is the table above; the bare `/` redirects to `/docs`. |
+| `400` on a lookup | The input is neither a valid IP address nor a hostname that resolves. |
+| `422` on a lookup | The address — or what the hostname resolved to — is private/loopback/link-local. No geolocation database can answer those. |
+| Disk planning | ~140 MB for the two databases, plus ~62 MB transient during each monthly refresh download. |
+
 ## Attribution — required
 
 The DB-IP Lite databases are licensed **[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)**. If you display results from this service on a web page, you must credit DB-IP with a link:
@@ -141,6 +201,14 @@ python -m venv .venv
 ```
 
 The test suite builds tiny in-memory `.mmdb` fixtures rather than downloading anything, so it is fast, offline and deterministic.
+
+`README.txt` is a plain-text rendering of this file for terminals and anywhere markdown doesn't render. It is generated — never edit it by hand:
+
+```bash
+python scripts/readme_txt.py
+```
+
+The test suite fails if it drifts out of sync with `README.md`.
 
 To check the real download path and real data end to end:
 
