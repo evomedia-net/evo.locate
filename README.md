@@ -73,6 +73,38 @@ location ~ ^/api/geo/(.+)$ {
 
 The response uses ip2location's field names (`country_code`, `country_name`, `region_name`, `city_name`, `asn`, `as`). Their paid-tier fields — `isp`, `domain`, `usage_type` — are **omitted**, exactly as they are on the free tier, so existing callers that fall back on them keep working unchanged.
 
+## Client examples
+
+Plain HTTP, so no client library is needed in any language. Python, standard library only:
+
+```python
+import json
+from urllib.request import urlopen
+
+# also accepts a hostname, e.g. .../v1/lookup/google.com
+with urlopen("http://localhost:9100/v1/lookup/8.8.8.8") as resp:
+    geo = json.load(resp)
+
+print(f"{geo['ip']}: {geo['city_name']}, {geo['country_name']} ({geo['as']})")
+# 8.8.8.8: Mountain View, United States (Google LLC)
+```
+
+A `400`/`422`/`503` raises `urllib.error.HTTPError`; the JSON body's `detail` field says why.
+
+Node.js (18+, built-in `fetch`, no dependencies):
+
+```js
+const resp = await fetch("http://localhost:9100/v1/lookup/8.8.8.8");
+if (!resp.ok) {
+  const { detail } = await resp.json();
+  throw new Error(`lookup failed (${resp.status}): ${detail}`);
+}
+const geo = await resp.json();
+
+console.log(`${geo.ip}: ${geo.city_name}, ${geo.country_name} (${geo.as})`);
+// 8.8.8.8: Mountain View, United States (Google LLC)
+```
+
 ## Configuration
 
 | Variable | Default | Meaning |
