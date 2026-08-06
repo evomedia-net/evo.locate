@@ -142,6 +142,14 @@ python -m venv .venv
 
 The test suite builds tiny in-memory `.mmdb` fixtures rather than downloading anything, so it is fast, offline and deterministic.
 
+`README.txt` is a plain-text rendering of this file for terminals and anywhere markdown doesn't render. It is generated — never edit it by hand:
+
+```bash
+python scripts/readme_txt.py
+```
+
+The test suite fails if it drifts out of sync with `README.md`.
+
 To check the real download path and real data end to end:
 
 ```bash
