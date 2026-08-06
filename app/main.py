@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.database import DatabaseUnavailable, GeoDatabases
@@ -92,6 +92,10 @@ class PrettyJSONResponse(JSONResponse):
 DESCRIPTION = """\
 Look up an IP address **or hostname**. Plain HTTP, no client library needed.
 
+Results shown on a web page owe DB-IP a credit — see `GET /v1/attribution`.
+
+#### Client examples
+
 **Python** (standard library only):
 
 ```python
@@ -116,10 +120,11 @@ const geo = await resp.json();
 
 console.log(`${geo.ip}: ${geo.city_name}, ${geo.country_name} (${geo.as})`);
 ```
-
-Results shown on a web page owe DB-IP a credit — see `GET /v1/attribution`.
 """
 
+# docs_url=None because /docs is served by our own route below: FastAPI's
+# stock page offers no way to style the description, and the client examples
+# should sit in a collapsible card like the endpoint sections do.
 app = FastAPI(
     title="evo.locate",
     version=VERSION,
@@ -127,7 +132,86 @@ app = FastAPI(
     description=DESCRIPTION,
     lifespan=lifespan,
     default_response_class=PrettyJSONResponse,
+    docs_url=None,
 )
+
+# Same Swagger UI setup FastAPI generates, with two additions: a plain
+# "evo.locate" tab title, and an onComplete hook that folds everything under
+# the description's "Client examples" heading into a <details> card styled
+# like the endpoint sections. If the heading ever disappears the hook is a
+# no-op and the description renders flat - nothing breaks.
+DOCS_HTML = """\
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>evo.locate</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+<style>
+.info details.client-samples {
+  margin: 20px 0;
+  background: #fff;
+  border: 1px solid rgba(59, 65, 81, .3);
+  border-radius: 4px;
+  box-shadow: 0 0 3px rgba(0, 0, 0, .19);
+}
+.info details.client-samples > summary {
+  cursor: pointer;
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #3b4151;
+  user-select: none;
+}
+.info details.client-samples[open] > summary {
+  border-bottom: 1px solid rgba(59, 65, 81, .3);
+}
+.info details.client-samples > .samples-body {
+  padding: 5px 20px 15px;
+}
+</style>
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+window.ui = SwaggerUIBundle({
+  url: "/openapi.json",
+  dom_id: "#swagger-ui",
+  presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePlugin],
+  layout: "BaseLayout",
+  deepLinking: true,
+  showExtensions: true,
+  showCommonExtensions: true,
+  onComplete: () => {
+    const heading = document.querySelector(".info .description h4");
+    if (!heading) return;
+    const details = document.createElement("details");
+    details.className = "client-samples";
+    const summary = document.createElement("summary");
+    summary.textContent = heading.textContent;
+    const body = document.createElement("div");
+    body.className = "samples-body";
+    let node = heading.nextSibling;
+    while (node) {
+      const next = node.nextSibling;
+      body.appendChild(node);
+      node = next;
+    }
+    details.append(summary, body);
+    heading.replaceWith(details);
+  },
+});
+</script>
+</body>
+</html>
+"""
+
+
+@app.get("/docs", include_in_schema=False)
+def docs() -> HTMLResponse:
+    return HTMLResponse(DOCS_HTML)
 
 
 # Registered on the starlette base class so it also catches the router's own

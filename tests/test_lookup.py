@@ -214,6 +214,14 @@ def test_attribution_travels_on_every_response(client):
         assert "db-ip.com" in client.get(path).headers["X-Data-Attribution"]
 
 
+def test_docs_page_is_served_by_the_custom_route(client):
+    """docs_url=None hands /docs to our route; it must still actually serve."""
+    resp = client.get("/docs")
+    assert resp.status_code == 200
+    assert "SwaggerUIBundle" in resp.text
+    assert "<title>evo.locate</title>" in resp.text
+
+
 def test_json_is_pretty_printed_everywhere(client):
     """Success, handler errors, and the router's own 404 all render indented."""
     for path in ("/v1/lookup/8.8.8.8", "/health", "/v1/lookup/not-an-ip", "/no-such-path"):
