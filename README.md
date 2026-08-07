@@ -80,6 +80,10 @@ WantedBy=multi-user.target
 ```
 
 ```bash
+# The data dir must exist and be writable by the unit's User, or the
+# first-boot download fails and /health sits at 503.
+sudo mkdir -p /opt/evo.locate/data
+sudo chown ubuntu /opt/evo.locate/data
 sudo systemctl daemon-reload
 sudo systemctl enable --now evo-locate
 curl localhost:9100/health
