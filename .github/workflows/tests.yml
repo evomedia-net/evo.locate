@@ -1,0 +1,75 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install
+        # requirements-dev.txt starts with `-r requirements.txt`, so this
+        # installs the runtime deps too. mmdb_writer comes from here, and it is
+        # what the fixture databases are built with.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        # -rs prints the reason for every skip, so a skipped test is diagnosable
+        # from the log rather than just a number.
+        run: python -m pytest -rs --junitxml=junit.xml
+
+      - name: Every test must actually run
+        # The bug this whole workflow exists for: the suite uses
+        # pytest.importorskip for mmdb_writer, so without dev deps it ran 1 of
+        # 24 tests and still exited 0. Green while testing nothing is worse than
+        # red, because nothing draws your attention to it. CI has no excuse for
+        # a missing optional dependency, so here a skip is a failure.
+        #
+        # A test that must be skipped in CI for a real reason should say so
+        # explicitly and be added to the allowlist below, deliberately.
+        if: always()
+        run: |
+          python - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+
+          ALLOWED_SKIPS = set()   # keep empty; add a nodeid only with a reason
+
+          root = ET.parse("junit.xml").getroot()
+          cases = root.iter("testcase")
+          skipped = [
+              f"{c.get('classname')}::{c.get('name')}"
+              for c in cases
+              if c.find("skipped") is not None
+          ]
+          unexpected = [s for s in skipped if s not in ALLOWED_SKIPS]
+          if unexpected:
+              print(f"{len(unexpected)} test(s) skipped in CI:")
+              for s in unexpected:
+                  print(f"  {s}")
+              print("\nCI installs every dependency, so nothing should skip here.")
+              sys.exit(1)
+          print("No unexpected skips.")
+          PY
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit
+          path: junit.xml
+          if-no-files-found: warn
