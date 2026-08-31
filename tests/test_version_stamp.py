@@ -12,11 +12,18 @@ current. So this asserts the two agree, and CI fails the moment they do not.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
-from fastapi.testclient import TestClient
+# Importing app.main constructs GeoDatabases, which mkdirs the data dir. The
+# default is /data, writable in the container and not on a CI runner, so point
+# it somewhere disposable BEFORE the import - the same order test_lookup.py
+# uses when it sets these inside its fixture.
+os.environ.setdefault("EVO_LOCATE_SKIP_BOOT_DOWNLOAD", "1")
+os.environ.setdefault("EVO_LOCATE_DATA_DIR", tempfile.mkdtemp(prefix="evolocate-version-"))
 
-from app.main import VERSION, app
+from app.main import VERSION, app  # noqa: E402
 
 STAMP = Path(__file__).resolve().parent.parent / "build-version.json"
 
@@ -36,6 +43,11 @@ def test_version_is_a_five_segment_stamp_not_a_fallback():
 
 
 def test_health_reports_that_same_version():
+    from fastapi.testclient import TestClient
+
+    # Status is not asserted: with no databases present /health is legitimately
+    # degraded. The version it reports must be right either way - a stale
+    # container answering "ok" is exactly the case this guards.
     with TestClient(app) as client:
         body = client.get("/health").json()
     assert body["version"] == VERSION
