@@ -33,7 +33,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger("evo.locate")
 
-VERSION = "0.0.0.1.3"
+def _read_version() -> str:
+    """The build stamp, read from build-version.json - the one source of truth.
+
+    This used to be a hardcoded literal, which meant the fleet stamp and the
+    version the API reports were two independent facts. On 2026-08-31 they
+    drifted: zbump moved build-version.json to v0.0.0.1.4, but /health kept
+    answering 0.0.0.1.3, and because the stamp was not in the image the rebuild
+    produced a byte-identical layer set - so compose correctly saw no change and
+    never restarted the container. A deploy that changes nothing looks exactly
+    like a deploy that worked.
+
+    An unreadable stamp returns "unknown" rather than a plausible-looking
+    number. Inventing a version is how the drift stayed invisible; a health
+    endpoint saying "unknown" is a question, and a wrong number is not.
+    """
+    try:
+        raw = json.loads((Path(__file__).resolve().parent.parent / "build-version.json").read_text(encoding="utf-8"))
+        stamp = str(raw["version"]).strip().lstrip("v")
+        parts = stamp.split(".")
+        if len(parts) != 5 or not all(p.isdigit() for p in parts):
+            return "unknown"
+        return stamp
+    except (OSError, ValueError, KeyError, TypeError):
+        return "unknown"
+
+
+VERSION = _read_version()
 
 # DB-IP Lite is CC BY 4.0. Anything displaying these results owes DB-IP a
 # visible credit with a link, so it travels on every response as a header
