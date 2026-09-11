@@ -19,6 +19,16 @@ WHAT GOES IN: everything git tracks, minus what a release should not carry.
 Using ``git ls-files`` rather than a hand-kept list means the zip is exactly the
 reviewed source, and a new file cannot be left out by forgetting to list it.
 
+WHAT IT REFUSES TO DO
+---------------------
+A release archive is named after a version, and people trust that name. It will
+not build one whose name would not describe its contents: not from a dirty tree
+(the zip is built from working-tree files, so uncommitted edits would ship
+inside it), and not for a version that is already tagged while the tree has
+moved past it. ``--force`` overwrites a file; it does not license a mislabelled
+one, so neither refusal yields to it. ``--allow-mismatch`` is the way past, and
+someone has to type it.
+
 WHY --digest-only EXISTS
 ------------------------
 The three zips already published here were built before this script and carry no
@@ -82,10 +92,62 @@ def write_digest(zip_path: Path) -> str:
     return digest
 
 
-def build(force: bool) -> int:
+def release_guard(version_: str, tag_exists: bool, tree_differs: bool,
+                  dirty: list[str]) -> str | None:
+    """Why this archive would lie, or None if it would not.
+
+    Pure on purpose: the combinations are the part worth testing, and they are
+    unreachable through a real repository without building one per case.
+    """
+    if dirty:
+        shown = ", ".join(dirty[:3])
+        more = f" and {len(dirty) - 3} more" if len(dirty) > 3 else ""
+        return (f"the tree has uncommitted changes ({shown}{more}), and the zip is built "
+                f"from working-tree files - they would ship inside a published release. "
+                f"Commit or stash them.")
+    if tag_exists and tree_differs:
+        return (f"{version_} is already tagged and this tree has moved past it, so the "
+                f"archive would carry contents its own name does not describe. Bump the "
+                f"version first, or check out {version_} to rebuild what was released.")
+    return None
+
+
+def repo_facts(version_: str) -> tuple[bool, bool, list[str]]:
+    """(tag exists, tree differs from it, dirty tracked paths) - asked of git."""
+    def git(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(["git", *args], cwd=REPO, capture_output=True, text=True)
+
+    tag_exists = git("rev-parse", "--verify", "--quiet", f"refs/tags/{version_}").returncode == 0
+    # releases/ is excluded from both: a version's zip and digest are committed
+    # AFTER its tag is laid, so they are the expected difference between the tag
+    # and HEAD - and a half-written one is not a reason to refuse the next build.
+    tree_differs = bool(
+        tag_exists
+        and git("diff", "--name-only", version_, "HEAD", "--", ".", ":(exclude)releases")
+        .stdout.strip()
+    )
+    dirty = [line[3:].strip()
+             for line in git("status", "--porcelain", "--untracked-files=no").stdout.splitlines()
+             if len(line) > 3]
+    return tag_exists, tree_differs, [d for d in dirty if not d.startswith("releases/")]
+
+
+def build(force: bool, allow_mismatch: bool = False) -> int:
     v = version()
     name = f"evo.locate-{v}.zip"
     zip_path = RELEASES / name
+
+    # Checked even under --force. Overwriting a file and publishing a
+    # mislabelled one are different permissions; only the first is what
+    # --force asks for.
+    reason = release_guard(v, *repo_facts(v))
+    if reason:
+        if not allow_mismatch:
+            print(f"\nRefusing to build releases/{name}: {reason}\n")
+            print("Override with --allow-mismatch if you are certain.\n")
+            return 1
+        print(f"\n  WARNING (--allow-mismatch): {reason}\n")
+
     if zip_path.exists() and not force:
         print(f"\nreleases/{name} already exists. Use --force to rebuild, or --verify to check it.\n")
         return 1
@@ -173,12 +235,14 @@ def main() -> int:
     ap.add_argument("--verify", action="store_true", help="check every zip in releases/")
     ap.add_argument("--digest-only", action="store_true",
                     help="write a .sha256 beside any zip missing one, without rebuilding it")
+    ap.add_argument("--allow-mismatch", action="store_true",
+                    help="build anyway when the tree is dirty or has moved past the tag")
     args = ap.parse_args()
     if args.verify:
         return verify()
     if args.digest_only:
         return digest_only()
-    return build(args.force)
+    return build(args.force, args.allow_mismatch)
 
 
 if __name__ == "__main__":

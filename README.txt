@@ -187,6 +187,53 @@ Every response carries an X-Data-Attribution header as a reminder, and GET /v1/a
 
 This obligation is yours as the operator. The service code itself is MIT licensed; the data is CC BY.
 
+Releases
+--------
+
+Every build is packaged as a zip under releases/ (releases), named for its
+version, with two independent integrity layers:
+
+| | verifies |
+| --- | --- |
+| evo.locate-<version>.zip.sha256 | the download arrived intact |
+| CHECKSUMS.txt inside the zip | the files after extracting |
+
+    sha256sum -c evo.locate-<version>.zip.sha256   # before unzipping
+    unzip evo.locate-<version>.zip -d evo.locate
+    cd evo.locate && sha256sum -c CHECKSUMS.txt    # after
+
+Both are integrity checks, not signatures: the manifest travels in the same
+archive as the files, so whoever can change one can change the other. They
+catch a truncated download, a corrupted mirror and an accidental edit — not a
+determined forger.
+
+The zips for v0.0.0.1.1 through v0.0.0.1.3 predate this and carry the download
+digest only. Rebuilding them would change bytes that are already published and
+already named by their tags, which is worse than the gap it closes, so they
+were left exactly as they are. --verify says which is which.
+
+Building one
+------------
+
+    python scripts/release.py            # build it
+    python scripts/release.py --verify   # check every zip in releases/
+
+What goes in is whatever git tracks, minus releases/ and .github/ — so the
+archive is exactly the reviewed source, and a new file cannot be left out by
+forgetting a list. Entries are sorted and stamped with a fixed timestamp, so
+two builds of the same commit produce the same bytes.
+
+It refuses to build an archive whose name would not describe its contents:
+
+- the tree is dirty — the zip is built from working-tree files, so
+  uncommitted edits would ship inside a published release;
+- the version is already tagged and the tree has moved past it — the
+  archive would carry contents its own name does not describe.
+
+--force overwrites an existing file; it does not license a mislabelled one,
+and neither refusal yields to it. To rebuild a release exactly as it shipped,
+check out its tag. --allow-mismatch overrides both, loudly.
+
 Development
 -----------
 
