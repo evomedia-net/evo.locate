@@ -1,0 +1,10 @@
+# The release digests are consumed by sha256sum, which is line-ending sensitive:
+# a CRLF checkout makes `sha256sum -c` fail with "no properly formatted checksum
+# lines found". This repo is developed on Windows with autocrlf on, so without
+# this the file that verifies a download is broken by the checkout that
+# delivered it.
+*.sha256        text eol=lf
+CHECKSUMS.txt   text eol=lf
+
+# Release archives are bytes; never let a line-ending filter near them.
+*.zip           binary
