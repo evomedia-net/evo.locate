@@ -61,9 +61,23 @@ def test_there_is_a_release_for_every_tag():
 
 
 def test_the_current_version_has_a_release():
+    """Once it is tagged. Before that, it is mid-release and owes nothing.
+
+    This used to demand a zip for whatever build-version.json said, which
+    deadlocked the release it was meant to protect: the version bump lands
+    first, the tag goes on its merge commit, and scripts/release.py refuses to
+    build an archive for a tag whose tree has moved - so at the moment the bump
+    PR runs CI, the zip it is asked for cannot exist yet and could not be built
+    if it did. The bump could never go green.
+
+    The rule that actually matters is the one above: every TAG ships a zip. A
+    stamped-but-untagged version has not shipped.
+    """
     v = current_version()
+    if v not in tags():
+        return
     assert (RELEASES / f"evo.locate-{v}.zip").exists(), (
-        f"build-version.json says {v} but releases/ has no zip for it - "
+        f"{v} is tagged but releases/ has no zip for it - "
         f"run: python scripts/release.py"
     )
 
