@@ -2,16 +2,21 @@
 # Created by Kelly Michels · dev@evomedia.net
 # Licensed under the MIT License. See LICENSE.
 
-"""Render README.md to README.txt with the markdown markup removed.
+"""Render every root-level .md to a .txt twin with the markup removed.
 
-README.txt exists for terminals, pagers and anywhere markdown doesn't
-render. It is generated - never edit it by hand:
+The twins exist for terminals, pagers and anywhere markdown doesn't
+render. They are generated - never edit one by hand:
 
-    python scripts/readme_txt.py          # rewrite README.txt
-    python scripts/readme_txt.py --check  # exit 1 if it is out of sync
+    python scripts/readme_txt.py          # rewrite every twin
+    python scripts/readme_txt.py --check  # exit 1 if any is out of sync
 
-The test suite runs --check, so a README.md edit that forgets to
-regenerate fails CI rather than shipping a stale mirror.
+The test suite runs --check, so an edit that forgets to regenerate
+fails CI rather than shipping a stale mirror.
+
+Every .md at the repository root is covered, discovered rather than
+listed: a hand-kept list is one more thing to forget, and the twin
+that gets forgotten is the one nobody notices is stale. SECURITY.md
+arrived after this script and a list would have missed it.
 """
 
 from __future__ import annotations
@@ -56,19 +61,29 @@ def render(md: str) -> str:
     return text.strip() + "\n"
 
 
+def twins() -> list[Path]:
+    """Every root-level .md that owes a .txt, in a stable order."""
+    return sorted(ROOT.glob("*.md"))
+
+
 def main() -> int:
-    source = (ROOT / "README.md").read_text(encoding="utf-8")
-    rendered = render(source)
-    target = ROOT / "README.txt"
-    if "--check" in sys.argv:
-        current = target.read_text(encoding="utf-8") if target.exists() else ""
-        if current != rendered:
-            print("README.txt is out of sync - run: python scripts/readme_txt.py")
+    check = "--check" in sys.argv
+    stale: list[str] = []
+    for source_path in twins():
+        rendered = render(source_path.read_text(encoding="utf-8"))
+        target = source_path.with_suffix(".txt")
+        if check:
+            current = target.read_text(encoding="utf-8") if target.exists() else ""
+            if current != rendered:
+                stale.append(target.name)
+            continue
+        target.write_text(rendered, encoding="utf-8", newline="\n")
+        print(f"Wrote {target} ({len(rendered.splitlines())} lines)")
+    if check:
+        if stale:
+            print(f"out of sync: {', '.join(stale)} - run: python scripts/readme_txt.py")
             return 1
-        print("README.txt is in sync")
-        return 0
-    target.write_text(rendered, encoding="utf-8", newline="\n")
-    print(f"Wrote {target} ({len(rendered.splitlines())} lines)")
+        print(f"{len(twins())} twin(s) in sync")
     return 0
 
 
