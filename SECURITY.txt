@@ -53,13 +53,10 @@ standing between a user and anything that matters.
 Release integrity
 -----------------
 
-Every release carries a .sha256 beside the zip, and archives built by
-scripts/release.py carry a CHECKSUMS.txt inside as well. Both are
-integrity checks, not signatures — the manifest travels in the same archive
-as the files, so whoever can change one can change the other. They catch a
-truncated download, a corrupted mirror and an accidental edit; they do not
-catch a forger.
+This repository does not commit release archives. scripts/release.py builds
+one on demand, with a .sha256 beside the zip and a CHECKSUMS.txt inside.
 
-The zips for v0.0.0.1.1 through v0.0.0.1.3 predate that script and carry
-the outer digest only. python scripts/release.py --verify says which is
-which rather than implying they are all the same.
+Both are integrity checks, not signatures — the manifest travels in the
+same archive as the files, so whoever can change one can change the other. They
+catch a truncated download, a corrupted mirror and an accidental edit; they do
+not catch a forger.
