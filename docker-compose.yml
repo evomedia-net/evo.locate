@@ -5,7 +5,7 @@
 # Minimal standalone run. Nothing is exposed publicly by default: the port is
 # bound to localhost so it sits behind whatever proxy you already run.
 #
-# Port 9100 rather than the obvious 8080: 8080 is already SmartPlant EHS's dev
+# Port 9100 rather than the obvious 8080: 8080 is already evo.ehs's dev
 # port and DocketMail's prod port, and a geolocation lookup failing because
 # something else answered on 8080 is a confusing hour to spend. 9100 is free on
 # the host - the monitoring stack (Prometheus 9090, node-exporter 9100) is
