@@ -1,8 +1,16 @@
 name: tests
 
+# Pull requests only. The push-to-main run tested the identical tree that had
+# just passed on the pull request - a squash merge of an up-to-date branch
+# produces the same content - so it could only ever repeat what was already
+# known. Across the fleet that was close to half of the Actions minutes, and
+# `zmerge -e` made it visible: twenty merges, twenty duplicate runs.
+#
+# Nothing lands untested. Main requires a pull request, and `pytest` is a
+# required check evaluated on the pull request's head commit, so the gate is
+# unchanged. Release, deploy and publish workflows keep their push triggers;
+# only the test workflow loses one.
 on:
-  push:
-    branches: [main]
   pull_request:
 
 permissions:
