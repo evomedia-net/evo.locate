@@ -11,6 +11,9 @@ permissions:
 jobs:
   pytest:
     runs-on: ubuntu-latest
+    # Stops a hung run at about twice this job's usual time, never under
+    # 5 minutes, instead of GitHub's default of 6 hours (evo.testsuites#25).
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
