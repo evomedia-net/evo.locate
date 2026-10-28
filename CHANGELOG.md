@@ -8,6 +8,8 @@ and the release moves them under its version.
 
 ## Unreleased
 
+## v0.0.0.1.10
+
 ### Documentation
 
 - **changelog:** the fleet format, evo.polaris's with no date on version headings; the .txt twins underline a third-level heading with ~ ([#32](https://github.com/evomedia-net/evo.locate/pull/32))
