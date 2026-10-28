@@ -8,7 +8,11 @@ and the release moves them under its version.
 
 ## Unreleased
 
-## v0.0.0.1.8 - 2026-10-08
+### Documentation
+
+- **changelog:** the fleet format, evo.polaris's with no date on version headings; the .txt twins underline a third-level heading with ~ ([#32](https://github.com/evomedia-net/evo.locate/pull/32))
+
+## v0.0.0.1.8
 
 ### Maintenance
 
@@ -17,17 +21,17 @@ and the release moves them under its version.
 - **ci:** stop a hung test run after 5 minutes instead of GitHub's 6 hours ([#26](https://github.com/evomedia-net/evo.locate/pull/26))
 - retire the SmartPlant EHS name from the port comment ([#25](https://github.com/evomedia-net/evo.locate/pull/25))
 
-## v0.0.0.1.7 - 2026-09-13
+## v0.0.0.1.7
 
 A release stamp only: no other change since the previous release.
 
-## v0.0.0.1.6 - 2026-09-12
+## v0.0.0.1.6
 
 ### Documentation
 
 - **security:** project security notes, and twins for every root .md ([#20](https://github.com/evomedia-net/evo.locate/pull/20))
 
-## v0.0.0.1.5 - 2026-09-11
+## v0.0.0.1.5
 
 ### Added
 
@@ -38,7 +42,7 @@ A release stamp only: no other change since the previous release.
 
 - **locate:** a version bump never reached production - /health read a hardcoded literal and the image never changed ([#15](https://github.com/evomedia-net/evo.locate/pull/15))
 
-## v0.0.0.1.4 - 2026-08-31
+## v0.0.0.1.4
 
 ### Fixed
 
@@ -54,19 +58,19 @@ A release stamp only: no other change since the previous release.
 - run the test suite on every PR, and fail if a test skips ([#8](https://github.com/evomedia-net/evo.locate/pull/8))
 - point repo URLs at evomedia-net/evo.* ([#6](https://github.com/evomedia-net/evo.locate/pull/6))
 
-## v0.0.0.1.3 - 2026-08-06
+## v0.0.0.1.3
 
 ### Maintenance
 
 - add Evomedia.net header (repo URL, author, MIT) to every code file ([#4](https://github.com/evomedia-net/evo.locate/pull/4))
 
-## v0.0.0.1.2 - 2026-08-06
+## v0.0.0.1.2
 
 ### Documentation
 
 - **readme:** plain-text README.txt mirror + run-without-Docker and troubleshooting sections ([#3](https://github.com/evomedia-net/evo.locate/pull/3))
 
-## v0.0.0.1.1 - 2026-08-06
+## v0.0.0.1.1
 
 ### Added
 
