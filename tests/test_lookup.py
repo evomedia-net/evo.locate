@@ -190,8 +190,21 @@ def test_unresolvable_hostname_is_rejected(client):
     assert resp.status_code == 400
 
 
-def test_hostname_resolving_to_private_space_answers_422(client):
-    resp = client.get("/v1/lookup/internal.example")
+def test_hostname_resolving_to_private_space_is_refused_like_an_unknown_name(client):
+    """The public try-it endpoint fronts this. Any difference between "that
+    name is not known" and "that name is one of ours" enumerates the Docker
+    network, and the address itself is the map."""
+    private = client.get("/v1/lookup/internal.example")
+    unknown = client.get("/v1/lookup/does-not-exist.example")
+    assert private.status_code == unknown.status_code == 400
+    assert "10.0.0.1" not in private.text
+    assert private.json()["detail"].replace("internal.example", "x") == \
+        unknown.json()["detail"].replace("does-not-exist.example", "x")
+
+
+def test_literal_private_address_still_answers_422(client):
+    # The caller typed it, so saying it is private reveals nothing.
+    resp = client.get("/v1/lookup/10.0.0.1")
     assert resp.status_code == 422
     assert "10.0.0.1" in resp.json()["detail"]
 
