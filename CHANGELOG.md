@@ -8,6 +8,8 @@ and the release moves them under its version.
 
 ## Unreleased
 
+## v0.0.0.1.11
+
 ### Fixed
 
 - **lookup:** a hostname that resolves only to private space now gets the same 400 as an unknown name, with no address in the answer; before, the answer named the address, which mapped the service's own network one container name at a time ([#35](https://github.com/evomedia-net/evo.locate/pull/35))
