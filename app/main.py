@@ -336,8 +336,19 @@ def lookup(ip: str, response: Response) -> dict:
     # 200 with empty fields would be indistinguishable from "we looked and
     # found nothing", so say plainly that it is not a routable address.
     if parsed.is_private or parsed.is_loopback or parsed.is_link_local:
-        detail = f"'{hostname}' resolves to '{ip}', which" if hostname else f"'{ip}'"
-        raise HTTPException(status_code=422, detail=f"{detail} is not a public address")
+        if hostname:
+            # A name that resolves only into private space is, from here, no
+            # different from one that does not resolve: the answer must be the
+            # same 400, with no address in it. This used to say what the name
+            # resolved to, which on the public try-it endpoint handed out the
+            # addresses of the service's own neighbours one container name at
+            # a time - and the 422 alone, against a 400 for an unknown name,
+            # was enough to tell which names existed.
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{hostname}' is not a valid IP address or a resolvable hostname",
+            )
+        raise HTTPException(status_code=422, detail=f"'{ip}' is not a public address")
 
     try:
         record = databases.lookup(ip)

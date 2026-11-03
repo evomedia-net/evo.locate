@@ -101,7 +101,7 @@ Status codes
 |---|---|
 | 200 | Found. Fields may be empty strings if the address is not in the database. |
 | 400 | Not a valid IP address or a hostname that resolves. |
-| 422 | Valid (or resolved), but private/loopback/link-local — not something any geolocation database can answer. |
+| 422 | A literal address that is private/loopback/link-local — not something any geolocation database can answer. A hostname that resolves only to such space gets a 400 worded exactly like an unknown name, so the answer never says what the service's own network looks like. |
 | 503 | Databases not loaded yet. |
 
 Anything that doesn't parse as an IP is treated as a hostname: it is resolved through the host's own DNS resolver (preferring IPv4 when a name has both) and the resolved address is looked up — the response's ip field tells you which address that was. That DNS query is the only network traffic a lookup can cause, it carries only the name, and literal-IP lookups never make it.
@@ -173,7 +173,7 @@ Troubleshooting
 | 503 persists | The download failed; the log says why (no network, proxy, full disk). The refresh worker retries every EVO_LOCATE_REFRESH_HOURS (default daily), and restarting the service retries immediately. A failed download never corrupts anything — files are swapped in only after a complete download parses successfully. |
 | {"detail": "Not Found"} | No route at that path. The API surface is the table above; the bare / redirects to /docs. |
 | 400 on a lookup | The input is neither a valid IP address nor a hostname that resolves. |
-| 422 on a lookup | The address — or what the hostname resolved to — is private/loopback/link-local. No geolocation database can answer those. |
+| 422 on a lookup | The address typed is private/loopback/link-local. No geolocation database can answer those. (A hostname that resolves to such space is a 400, like an unknown name — on purpose; see the response codes above.) |
 | Disk planning | ~140 MB for the two databases, plus ~62 MB transient during each monthly refresh download. |
 
 Attribution — required
