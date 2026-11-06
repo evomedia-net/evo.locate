@@ -10,6 +10,11 @@ and the release moves them under its version.
 Unreleased
 ----------
 
+Fixed
+~~~~~
+
+- docs: the plain-text twins keep what is inside backticks intact, drop raw HTML by element name, say a self-linking address once, and strip strikethrough markers (#37 (https://github.com/evomedia-net/evo.locate/pull/37))
+
 v0.0.0.1.11
 -----------
 
