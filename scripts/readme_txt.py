@@ -28,13 +28,72 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
+#: HTML element names, so a tag can be told from prose that merely looks like
+#: one. An allowlist and not `</?\w+>`, because these documents are full of
+#: placeholders written the same way - <owner>/<repo>.git, <subject>.txt - and
+#: deleting those would take words out of the twin, which is the one thing it
+#: must never do.
+_HTML = (
+    r"</?(?:picture|source|img|div|span|br|p|a|table|thead|tbody|tfoot|tr|td|th"
+    r"|details|summary|sup|sub|kbd|em|strong|code|pre|hr|h[1-6]|ul|ol|li"
+    r"|blockquote|center|figure|figcaption|video|audio|iframe|small|b|i|u|s)"
+    r"(?:\s[^<>]*)?/?>"
+)
+
+
 def _inline(text: str) -> str:
+    """Strip the inline markup, keeping the words and the link targets.
+
+    Inline code is lifted out FIRST and put back last. What is inside backticks
+    is content, not markup, and running the emphasis rules over it corrupts it:
+    SECURITY.md names the header family `X-Forwarded-*`, and a sibling fleet
+    document a pair of input files as `Civil Parties*JWEB*.txt` - whose
+    asterisks the italic rule ate, gluing two words into "PartiesJWEB". Same
+    reasoning for the HTML rules: `<a>` written as an example is a word, not a
+    tag.
+    """
+    code: list[str] = []
+
+    def lift(match: re.Match) -> str:
+        code.append(match.group(1))
+        return f"\x00{len(code) - 1}\x00"
+
+    def restore(s: str) -> str:
+        return re.sub(r"\x00(\d+)\x00", lambda m: code[int(m.group(1))], s)
+
+    text = re.sub(r"`([^`]+)`", lift, text)
+
+    # An <img> carries its words in alt=, exactly as a markdown image does.
+    text = re.sub(r"<img\b[^<>]*?\balt=[\"']([^\"']*)[\"'][^<>]*>", r"\1", text)
+    text = re.sub(_HTML, "", text)
     text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", text)  # images -> alt text
-    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1 (\2)", text)  # links -> text (url)
+
+    def link(match: re.Match) -> str:
+        """A link becomes "text (url)" - unless the text already IS the url.
+
+        SECURITY.md links dev@evomedia.net to mailto:dev@evomedia.net, which
+        read as "x (x)" - the same thing said twice, telling the reader nothing
+        the second time. Compared after putting the code back, because such a
+        link is usually written with backticks around its text.
+        """
+        shown, url = match.group(1), match.group(2)
+        bare, target = restore(shown), restore(url)
+        if bare == target or target == "mailto:" + bare:
+            return shown
+        return f"{shown} ({url})"
+
+    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", link, text)
     text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)  # bold
     text = re.sub(r"(?<!\*)\*([^*\n]+)\*(?!\*)", r"\1", text)  # italic
-    text = re.sub(r"`([^`]+)`", r"\1", text)  # inline code
-    return text
+    # Strikethrough, same class as the two above. Left in place, its markers
+    # read as punctuation AND collide with the "~" a third-level heading is
+    # underlined with, so a struck-out phrase looks like markup in the one file
+    # whose job is to have none. Safe unconditionally: no document here - or
+    # anywhere in the fleet - uses "~~~" as a code fence, which is the one
+    # construct this would disturb, and a tilde inside backticks is already
+    # lifted out of reach.
+    text = re.sub(r"~~([^~]+)~~", r"\1", text)  # strikethrough
+    return restore(text)
 
 
 def render(md: str) -> str:
@@ -57,7 +116,14 @@ def render(md: str) -> str:
             # CHANGELOG.txt is the fleet's changelog format (Kelly, 2026-10-27).
             out.append("=-~..."[len(heading.group(1)) - 1] * len(text))
             continue
-        out.append(_inline(line))
+        rendered = _inline(line)
+        # A line that was only a tag - <picture>, </picture>, a bare <source> -
+        # leaves nothing behind once the HTML rules have run. Emitting the
+        # blank would turn one HTML block into a run of empty lines in the
+        # middle of a paragraph.
+        if line.strip() and not rendered.strip():
+            continue
+        out.append(rendered)
     text = "\n".join(out)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip() + "\n"

@@ -3,7 +3,7 @@ Security
 
 How to report a vulnerability, what to expect, and what is in scope:
 the evomedia-net security policy (https://github.com/evomedia-net/.github/blob/main/SECURITY.md).
-Short version — email dev@evomedia.net (mailto:dev@evomedia.net), not a public
+Short version — email dev@evomedia.net, not a public
 issue.
 
 What follows is particular to this project. It is a network service whose whole
