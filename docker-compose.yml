@@ -18,6 +18,18 @@ services:
     image: evo-locate:latest
     container_name: evo_locate
     restart: unless-stopped
+    # The service runs as an unprivileged user and needs no capability, so
+    # none is left for it to be handed, and nothing in the container can gain
+    # privileges it did not start with.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Ceilings, not sizes: a runaway meets them before it can take the host's
+    # memory or process table. The hosted instance peaks near 130 MiB and 18
+    # processes.
+    pids_limit: 200
+    mem_limit: 512m
     ports:
       - "127.0.0.1:9100:9100"
     volumes:
