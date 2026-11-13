@@ -8,6 +8,10 @@ and the release moves them under its version.
 
 ## Unreleased
 
+### Fixed
+
+- **containers:** the compose file drops every capability, stops the container gaining privileges it did not start with, and sets a memory and a process ceiling ([#39](https://github.com/evomedia-net/evo.locate/pull/39))
+
 ## v0.0.0.1.12
 
 ### Fixed
